@@ -71,6 +71,7 @@ let aspectRatios = [
         }
         return [null, null];
     }),
+    new AspectRatio("20:9", 640, 288),
     new AspectRatio("21:9", 768, 320),
     new AspectRatio("3:4", 448, 576),
     new AspectRatio("2:3", 416, 608, (w, h) => {
@@ -89,6 +90,7 @@ let aspectRatios = [
         }
         return [null, null];
     }),
+    new AspectRatio("9:20", 288, 640),
     new AspectRatio("9:21", 320, 768)
 ];
 
