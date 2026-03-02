@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
 using Microsoft.AspNetCore.Builder;
 using Newtonsoft.Json;
@@ -616,7 +616,7 @@ public class ComfyUIBackendExtension : Extension
 
     public static T2IRegisteredParam<bool> AITemplateParam, DebugRegionalPrompting, ShiftedLatentAverageInit, UseCfgZeroStar, UseTCFG;
 
-    public static T2IRegisteredParam<double> IPAdapterWeight, IPAdapterStart, IPAdapterEnd, SelfAttentionGuidanceScale, SelfAttentionGuidanceSigmaBlur, PerturbedAttentionGuidanceScale, StyleModelMergeStrength, StyleModelApplyStart, StyleModelMultiplyStrength, RescaleCFGMultiplier, TeaCacheThreshold, TeaCacheStart, NunchakuCacheThreshold, EasyCacheThreshold, EasyCacheStart, EasyCacheEnd, RenormCFG;
+    public static T2IRegisteredParam<double> IPAdapterWeight, IPAdapterStart, IPAdapterEnd, SelfAttentionGuidanceScale, SelfAttentionGuidanceSigmaBlur, PerturbedAttentionGuidanceScale, StyleModelMergeStrength, StyleModelApplyStart, StyleModelMultiplyStrength, RescaleCFGMultiplier, TeaCacheThreshold, TeaCacheStart, NunchakuCacheThreshold, EasyCacheThreshold, EasyCacheStart, EasyCacheEnd, RenormCFG, NormalizedAttentionGuidanceScale, NormalizedAttentionGuidanceAlpha, NormalizedAttentionGuidanceTau;
 
     public static T2IRegisteredParam<int> RefinerHyperTile, VideoFrameInterpolationMultiplier;
 
@@ -649,7 +649,7 @@ public class ComfyUIBackendExtension : Extension
 
     public static ConcurrentDictionary<string, JToken> ControlNetPreprocessors = new() { ["None"] = null };
 
-    public static T2IParamGroup ComfyGroup, ComfyAdvancedGroup;
+    public static T2IParamGroup ComfyAdvancedGroup;
 
     /// <inheritdoc/>
     public override void OnInit()
@@ -681,10 +681,9 @@ public class ComfyUIBackendExtension : Extension
         StyleModelApplyStart = T2IParamTypes.Register<double>(new("Style Model Apply Start", "When to start applying the Style Model, as a fraction of steps (if enabled).\nFor example, 0.25 starts applying a quarter (25%) of the way through.\nThis is probably off-scale due to scheduler behavior in ComfyUI internals. Very low values are recommend for practical usage.",
             "0", IgnoreIf: "0", Min: 0.0, Max: 1.0, Step: 0.01, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupImagePrompting, ViewType: ParamViewType.SLIDER, OrderPriority: 14.7, IsAdvanced: true, Examples: ["0", "0.2", "0.5"], DependNonDefault: UseStyleModel.Type.ID
             ));
-        ComfyGroup = new("ComfyUI", Toggles: false, Open: false);
         ComfyAdvancedGroup = new("ComfyUI Advanced", Toggles: false, IsAdvanced: true, Open: false);
-        CustomWorkflowParam = T2IParamTypes.Register<string>(new("[ComfyUI] Custom Workflow", "What custom workflow to use in ComfyUI (built in the Comfy Workflow Editor tab).\nGenerally, do not use this directly.",
-            "", Toggleable: true, FeatureFlag: "comfyui", Group: ComfyGroup, IsAdvanced: true, ValidateValues: false, ChangeWeight: 8, Permission: PermStoredCustomWorkflows,
+        CustomWorkflowParam = T2IParamTypes.Register<string>(new("ComfyUI Custom Workflow", "What custom workflow to use in ComfyUI (built in the Comfy Workflow Editor tab).\nGenerally, do not use this directly.",
+            "", Toggleable: true, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupSwarmInternal, IsAdvanced: true, ValidateValues: false, ChangeWeight: 8, Permission: PermStoredCustomWorkflows,
             GetValues: (_) => [.. CustomWorkflows.Keys.Order()],
             Clean: (_, val) => CustomWorkflows.ContainsKey(val) ? $"PARSED%{val}%{ComfyUIWebAPI.ReadCustomWorkflow(val)["prompt"]}" : val,
             MetadataFormat: v => v.StartsWith("PARSED%") ? v.After("%").Before("%") : v
@@ -696,7 +695,7 @@ public class ComfyUIBackendExtension : Extension
             "normal", Toggleable: true, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupSampling, OrderPriority: -4, CanSectionalize: true, GetValues: (_) => Schedulers
             ));
         AITemplateParam = T2IParamTypes.Register<bool>(new("Enable AITemplate", "If checked, enables AITemplate for ComfyUI generations (UNet only). Only compatible with some GPUs.",
-            "false", IgnoreIf: "false", FeatureFlag: "aitemplate", Group: ComfyGroup, ChangeWeight: 5
+            "false", IgnoreIf: "false", FeatureFlag: "aitemplate", Group: T2IParamTypes.GroupAlternateGuidance, ChangeWeight: 5
             ));
         PreferredDType = T2IParamTypes.Register<string>(new("Preferred DType", "Preferred data type for models, when a choice is available.\n(Notably primarily affects Flux.1 models currently).\nIf disabled, will automatically decide.\n'fp8_e43fn' is recommended for large models.\n'Default' uses global default type, usually fp16 or bf16.",
             "automatic", FeatureFlag: "comfyui", Group: T2IParamTypes.GroupAdvancedSampling, IsAdvanced: true, Toggleable: true, OrderPriority: 9, GetValues: (_) => ["automatic///Automatic (decide by model)", "default///Default (16 bit)", "fp8_e4m3fn///FP8 e4m3fn (8 bit)", "fp8_e5m2///FP8 e5m2 (alt 8 bit)"]
@@ -721,6 +720,15 @@ public class ComfyUIBackendExtension : Extension
             ));
         UseTCFG = T2IParamTypes.Register<bool>(new("Use TCFG", "If enabled, use 'TCFG' (Tangential Damping Classifier-Free Guidance, defined <a target=\"_blank\" href=\"https://arxiv.org/abs/2503.18137\">in this paper</a>).\nThis may reduce CFG artifacts. Compatible with modern 'Flow' models.",
             "false", IgnoreIf: "false", FeatureFlag: "comfyui", Group: T2IParamTypes.GroupAlternateGuidance, IsAdvanced: true, OrderPriority: 17
+            ));
+        NormalizedAttentionGuidanceScale = T2IParamTypes.Register<double>(new("Normalized Attention Guidance Scale", "Scale for Normalized Attention Guidance, defined <a target=\"_blank\" href=\"https://arxiv.org/abs/2505.21179\">in this paper</a>).\nDesigned to when CFG Scale is set to 1 (CFG disabled), and gives back some negative prompting support.\n5 is a reasonable starter value for using this.\nDefaults to 0 (disabled).",
+            "0", IgnoreIf: "0", Min: 0, Max: 50, Step: 1, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupAlternateGuidance, IsAdvanced: true, ViewType: ParamViewType.SLIDER, OrderPriority: 18
+            ));
+        NormalizedAttentionGuidanceAlpha = T2IParamTypes.Register<double>(new("Normalized Attention Guidance Alpha", "Alpha value for Normalized Attention Guidance, aka blending scale.\nIn other words, how strongly to mix NAG with the base generation.\n1 means fully NAG, 0 means fully base, 0.5 means half-n-half. 0.5 is a safe default.",
+            "0.5", Min: 0, Max: 1, Step: 0.01, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupAlternateGuidance, IsAdvanced: true, Toggleable: true, ViewType: ParamViewType.SLIDER, OrderPriority: 18.1, DependNonDefault: NormalizedAttentionGuidanceScale.Type.ID
+            ));
+        NormalizedAttentionGuidanceTau = T2IParamTypes.Register<double>(new("Normalized Attention Guidance Tau", "Tau value for Normalized Attention Guidance.\nThis is a more internal value which modifies the guidance scaling.",
+            "1.5", Min: 0.5, Max: 10, Step: 0.01, FeatureFlag: "comfyui", Group: T2IParamTypes.GroupAlternateGuidance, IsAdvanced: true, Toggleable: true, ViewType: ParamViewType.SLIDER, OrderPriority: 18.2, DependNonDefault: NormalizedAttentionGuidanceScale.Type.ID
             ));
         RefinerUpscaleMethod = T2IParamTypes.Register<string>(new("Refiner Upscale Method", "How to upscale the image, if upscaling is used.",
             "pixel-lanczos", Group: T2IParamTypes.GroupRefiners, OrderPriority: -1, FeatureFlag: "comfyui", ChangeWeight: 1,
