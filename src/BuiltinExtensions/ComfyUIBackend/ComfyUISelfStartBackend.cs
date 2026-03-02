@@ -601,8 +601,8 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
             if (Directory.Exists($"{ComfyUIBackendExtension.Folder}/DLNodes/ComfyUI_IPAdapter_plus") || Directory.Exists($"{ComfyUIBackendExtension.Folder}/DLNodes/ComfyUI-nunchaku") || Directory.Exists($"{ComfyUIBackendExtension.Folder}/DLNodes/ComfyUI-ReActor"))
             {
                 // FaceID IPAdapter models need these, really inconvenient to make dependencies conditional, so... (nunchaku and ReActor need it too)
-                if (!libs.Contains("insightface") && numpyVers is not null && Version.Parse(numpyVers) > Version.Parse("2.0")) // Patch-hack because numpy v2 has incompatibilities with insightface's compiled Cython extensions
-                { // Note: sometimes 2+ is needed, so we carefully only remove for the first install of insightface, and allow it to be manually shifted back to 2+ after without undoing it
+                if (numpyVers is not null && Version.Parse(numpyVers) > Version.Parse("2.0")) // Patch-hack because numpy v2 has incompatibilities with insightface's compiled Cython extensions
+                { // Always downgrade numpy when 2.x is present, as insightface's pre-built Cython extensions require numpy <2.0 (binary incompatibility causes ValueError at import time)
                     await pipCall($"Remove numpy2+", $"uninstall -y numpy");
                     await update("numpy", "numpy==1.26.4");
                 }
