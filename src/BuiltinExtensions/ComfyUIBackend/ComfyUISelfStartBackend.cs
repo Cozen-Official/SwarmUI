@@ -104,6 +104,8 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
         ("imageio_ffmpeg", "imageio-ffmpeg"),
         ("dill", "dill"),
         ("omegaconf", "omegaconf"), // some yolo models require this but ultralytics itself doesn't? wut?
+        ("pyopengl", "PyOpenGL"), // ComfyUI non-essential dependency for OpenGL rendering
+        ("glfw", "glfw"), // ComfyUI non-essential dependency for window management
         //("mesonpy", "meson-python") // Build requirement sometimes. Probably will be required when python 3.13 is stably supported.
     ];
 
