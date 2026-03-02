@@ -9,6 +9,9 @@ set PATH=C:\Program Files\dotnet;%PATH%
 
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
 
+
+dotnet build src/SwarmUI.csproj --configuration Release -o ./src/bin/live_release
+
 rem Server settings option
 if exist .\src\bin\always_pull (
     echo Pulling latest changes...
